@@ -43,12 +43,60 @@ def modifiedSuffixTrieConstruction (text):
 
     return trie
 
-'''
-def maximalNonBranchingPath (graph):
-    paths = []
-    for
-'''
-
 #print suffixTrie("panamabananas$")
 
 #print modifiedSuffixTrieConstruction("panamabananas$")
+
+from bioLibrary import *
+
+##### MAIN
+tr = trieConstruction (
+    "panamabananas$",
+    "anamabananas$",
+    "namabananas$",
+    "amabananas$",
+    "mabananas$",
+    "abananas$",
+    "bananas$",
+    "ananas$",
+    "nanas$",
+    "anas$",
+    "nas$",
+    "as$",
+    "s$",
+    "$"
+)
+#print "TR", tr
+# TESTED print prefixMatching("panamabananas", tr)
+
+#matches = treeMatching("AATCGGGTTCAATCGGGGT", "ATCG", "GGGT")
+#print " ".join ([ str (x) for x in matches])
+
+def trie2Graph (trie):
+    graph = {}
+    idx = 0
+    for node in trie:
+        vals = node.values()
+        vals.sort()
+        if vals != []:
+            graph[idx] = vals
+            ##### print graph[idx]
+        idx += 1
+
+    return graph
+
+
+graph = trie2Graph(tr)
+start_node=-1
+end_node=-1
+
+graph = {
+    1:[2],
+    2:[3],
+    3:[4,5],
+    6:[7],
+    7:[6]
+}
+#maximalNonBranchingPaths(graph)
+# WORKED WITH BIG DATA SET, AND PROBLEM SET
+print '\n'.join (sorted (maximalNonBranchingPaths(graph)))
