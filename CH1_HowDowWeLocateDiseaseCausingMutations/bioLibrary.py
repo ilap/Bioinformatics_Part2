@@ -18,9 +18,103 @@ def timing(f):
 
 '''
 ########################################################################################
+####### 2.2-24 Burrows-Wheeler Transform (BWT)
+########################################################################################
+'''
+
+'''
+2.4 Reconstruct the 1st row from last row
+'''
+@timing
+def reconstructTextFromBWT (text):
+
+    text_len = len (text)
+
+    first_col = []
+
+    for i,ch in enumerate (text):
+        first_col.append( (ch,i))
+
+    first_col.sort()
+    (curr_char, char_idx) = first_col[0]
+    result = ""
+    for i in range(text_len):
+        (curr_char, char_idx) = first_col[char_idx]
+        result += curr_char
+
+    return result
+'''
+########################################################################################
+####### 2.1 Suffix Arrays and others
+########################################################################################
+'''
+
+'''
+########################################################################################
 ####### 1.5 Suffix Trees
 ########################################################################################
 '''
+def checkChildrensColor (suffix_trie, text, node = 0):
+
+    nodes = suffix_trie[node].keys ()
+    first_color = ''
+    color = ''
+
+    for tmp_node in nodes:
+        ((str_pos, str_len), (idx, color)) = suffix_trie[node][tmp_node]
+        #print "COLOR IN CHECK", c_idx, color
+        if first_color == '':
+            first_color = color
+        else:
+            #print "CCC", first_color, color
+            if color == 'g':
+                color = checkChildrensColor(suffix_trie, text, tmp_node)
+            if first_color != color:
+                color = 'p'
+                break
+
+
+    return color
+
+
+def treeColoring  (suffix_trie, text, node = 0, result=""):
+
+    nodes = suffix_trie[node].keys ()
+    hash_idx = text.index('#')
+    #print "NODES to walk", nodes
+    for tmp_node in nodes:
+        ((str_pos, str_len), (idx, color)) = suffix_trie[node][tmp_node]
+        new_result = text[str_pos:str_pos+str_len]
+        #print "NODE", tmp_node, node, result
+
+        nr_keys = suffix_trie[tmp_node].keys ()
+        key_len = len (nr_keys)
+        if  nr_keys != []:
+            #print "means NOT LEAF", hash_idx, str_pos, str_len, new_result, idx, color
+            #print "AAA", node, tmp_node, " AAA", key_len, result, " NEW R:", new_result
+            #new_result = result + new_result
+            #if (max_len < len (new_result)):
+            #    max_len = len (new_result)
+            new_result = result + new_result
+            treeColoring(suffix_trie, text, tmp_node,new_result)
+            color = checkChildrensColor (suffix_trie, text, tmp_node )
+
+            #print "COLOR", color, new_result
+
+        else:
+            if idx <= hash_idx:
+                color = 'b'
+            else:
+                color = 'r'
+            suffix_trie[node][tmp_node] = ((str_pos, str_len), (idx, color))
+            #print "Means LEAF", hash_idx, str_pos, str_len, new_result, idx, color
+
+        if color == 'p':
+            print "Longest Matched (grep Long | sort -n  |tail)", len(new_result), new_result
+        elif color == 'b':
+            print "Shortest Not Matched (grep Short | sort -rn | tail)", len(new_result), new_result, color
+    return
+
 
 def suffixTreeMatching (suffix_trie, text, node = 0,result ="", pattern_len=0):
 
