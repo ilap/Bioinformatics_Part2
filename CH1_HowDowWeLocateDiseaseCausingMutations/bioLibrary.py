@@ -21,6 +21,61 @@ def timing(f):
 ####### 2.2-24 Burrows-Wheeler Transform (BWT)
 ########################################################################################
 '''
+'''
+2.5 Pattern match with Burrows-Wheeler Transwform
+'''
+#@timing
+def patternMatchInBWT (text, pattern):
+
+    text_len = len (text)
+
+    first_col = []
+    last_col_table = {}
+
+    for i,ch in enumerate (text):
+        if not last_col_table.has_key(ch):
+            last_col_table[ch] = [i]
+        else:
+            last_col_table[ch].append (i)
+
+        first_col.append( (ch,i))
+
+    first_col.sort()
+    #print first_col
+    first_col_text = ''.join(sorted (text))
+    #print first_col_text
+
+
+    top = 0
+    bottom = len (text)-1
+
+    occurance = 0
+
+    for i in  range (len (pattern)-1, -1, -1):
+        curr_char = pattern [i]
+        #print curr_char
+
+        if not last_col_table.has_key(curr_char):
+            occurance = 0
+            break
+
+        import bisect
+        fc_tidx = bisect.bisect_left(last_col_table[curr_char],top)
+        fc_bidx = bisect.bisect_right(last_col_table[curr_char],bottom)
+
+        occurance = fc_bidx - fc_tidx
+
+
+        if occurance != 0:
+            #print "I", i
+            top = bisect.bisect_left(first_col_text, curr_char)+fc_tidx
+            bottom = top + occurance - 1
+            #print "OCC", occurance, curr_char, top, bottom
+        else:
+            occurance = 0
+            break
+
+    return occurance
 
 '''
 2.4 Reconstruct the 1st row from last row
@@ -48,6 +103,96 @@ def reconstructTextFromBWT (text):
 ####### 2.1 Suffix Arrays and others
 ########################################################################################
 '''
+'''
+2.1 Burrows-Wheeler transform is a lexicographically ordered cyclic rotations
+    and the last character of that matrix
+'''
+@timing
+def text2BurrowsWheeler (text):
+
+    import bisect
+    burrows_wheeler_array = []
+    str_len = len (text)
+
+    for i,c in enumerate (text):
+        cycle = text[i:]+text[0:i]
+        #bisect.insort(burrows_wheeler_array, cycle )
+        burrows_wheeler_array.append(cycle)
+
+
+    burrows_wheeler_array.sort ()
+    #print '\n'.join (burrows_wheeler_array)
+    result = ''.join (x[str_len-1] for x in burrows_wheeler_array)
+
+    return result
+
+@timing
+def text2BurrowsWheelerQuick (text):
+
+    str_len = len (text)
+    partial = []
+
+    bwt_arr = [(text[0], text[str_len-1])]
+
+    for idx in range (1, str_len):
+        bwt_arr.append ((text[idx], text[idx -1]))
+    bwt_arr.sort()
+    print "BWT ARR", bwt_arr
+    bwt_str = ''.join ( y for x,y in bwt_arr)
+
+    return bwt_str
+
+@timing
+def text2BurrowsWheeler2 (text):
+
+    import bisect
+    burrows_wheeler_array = []
+    str_len = len (text)
+
+    for i,c in enumerate (text):
+        cycle = text[i:]+text[0:i]
+        bisect.insort(burrows_wheeler_array, cycle )
+
+
+
+    #print '\n'.join (burrows_wheeler_array)
+    result = ''.join (x[str_len-1] for x in burrows_wheeler_array)
+
+    return result
+'''
+2.1 Suffix Array
+'''
+@timing
+def text2SuffixArray (text, k=0, partial=False):
+    suffix_array = []
+    for i,c in enumerate (text):
+        suffix_array.append ((text[i:], i))
+        #print (text[i:], i)
+
+    suffix_array.sort ()
+
+    res_arr = []
+    res_str = ""
+    res_occ = {}
+    res_l2f = [0]*len (text)
+    chr = ''
+    idx = 0
+    for x,y in suffix_array:
+        #print "XY", x,y
+        new_chr = x[0]
+        if new_chr != chr:
+            chr = new_chr
+            res_occ[chr] = idx
+
+        #res_occ
+        res_str += text[y-1]
+        res_arr.append(y)
+
+        idx += 1
+    #print "FIRST_OCC", res_occ
+    return (res_arr, res_str, res_occ)
+    #return ([y for x,y in suffix_array]),
+
 
 '''
 ########################################################################################
@@ -148,9 +293,9 @@ def sufixTreeConstructionProblem (suffix_tree, text):
         if  line != {}:
             #print line
             for key in line.keys ():
-                (pos, str_len) = line[key]
-                #print STR[pos:pos+len]
-                result.append(text[pos:pos+str_len])
+                ((str_pos,str_len), (str_idx, str_color)) = line[key]
+                print "TEXT", str_pos, str_len, line[key], text[str_pos:str_pos+str_len]
+                result.append(text[str_pos:str_pos+str_len])
 
 
     print '\n'.join(result)
