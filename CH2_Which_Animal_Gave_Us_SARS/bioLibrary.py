@@ -123,6 +123,7 @@ class Graph:
 
         self.vertList[f].addNeighbor(self.vertList[t], cost)
         if self.directed:
+            #print "DIRECTED", f,t, cost
             self.vertList[t].addNeighbor(self.vertList[f], cost)
 
     '''
@@ -264,7 +265,7 @@ class Graph:
 class Matrix:
 
 
-    def __init__(self, string_list="", dimension=0, dtype=np.uint16):
+    def __init__(self, string_list="", dimension=0, dtype=np.int16):
 
         if not string_list:
             if dimension == 0:
@@ -568,11 +569,148 @@ class Matrix:
     '''
     def getNeighborJoiningMatrix (self):
         # distance...
-        Dstar = self.getMatrix ()[:]
+        M = self.getMatrix ()
+        Dstar = M.copy ()
 
         dlen = len (Dstar)
 
+        total_distances = [0]*dlen
+        for i in range (dlen):
+            total_distances[i]= sum (M[i])
+
+        min_i = sys.maxint
+        min_j = sys.maxint
+        val = sys.maxint
         for i in range (dlen):
             for j in range (i+1,dlen):
-                print "DStar", i, j
-        return Dstar
+                #print "Ti Tj", totalDistance_i, totalDistance_j, (dlen-2)*M[i][j], (dlen-2)*M[i][j]-totalDistance_i-totalDistance_j
+                Dval = (dlen-2)*M[i][j]-total_distances[i]-total_distances[j]
+                Dstar[i][j] = Dval
+                Dstar[j][i] = Dval
+                if Dval < val:
+                    #print "MIN", Dval, i,j
+                    val = Dval
+                    min_i = i
+                    min_j = j
+
+
+        return (Dstar, total_distances, min_i, min_j)
+
+    '''
+    Limb Length Problem: Compute the length of a limb in a tree defined by an additive distance matrix.
+        Input:  An additive distance matrix D and an integer j.
+        Output: LimbLength(j), the length of the limb connecting leaf j to its parent.
+    '''
+    def getLimbLengthFromNeighborJoining (self, neighbor_joining, total_distances, j):
+        #NM stands for Neighbor Joining Matrix
+        min = sys.maxint
+        steps = 0
+        njm = neighbor_joining
+        N = len (njm)
+        for i in range (0, N):
+            if i != j:
+                for k in range (i+1, N):
+                    if j != k:
+                        Deltaij = (total_distances[i]-total_distances[j])/(N-2)
+                        val = 0.5*(njm[i][j]+Deltaij)
+                        print "VAL", val, min
+                        if val < min:
+                            min = val
+        ####print "Steps", steps
+        return  min
+
+    def getMinimumelements (self, njm):
+
+        min = sys.maxint
+        steps = 0
+        #njm = self.getMatrix()
+
+        N = len (njm)
+        min_i = 0
+        min_j = 0
+        for i in range (0, N):
+                for j in range (i+1, N):
+                    if i != j:
+                        val = njm[i][j]
+                        print "NJM", i, j, njm[i][j]
+                        if val < min:
+                            min = val
+                            min_i = i
+                            min_j = j
+        ####print "Steps", steps
+        return  (min_i,min_j)
+
+
+    def neighborJoining (self,N):
+        G = Graph (directed=True)
+        D = deepcopy (self)
+        columns = range (N)
+        T = D.__neighbor_joining__(G, N, columns, len (self.matrix)-1)
+        return T
+
+    def compressMatrix (self, min_i, min_j):
+
+        M = self.getMatrix()
+        N = len (M)
+
+        for i in range (0, N):
+            if i != min_i and i != min_j:
+                val = (M[i][min_i]+M[i][min_j]-M[min_i][min_j])/2
+                #print "Dim:", i,min_i, "VAL", val
+                M[i][min_i] = val
+                M[min_i][i] = val
+
+
+        self.removeOffDiagonal(min_j)
+
+        return  self.getMatrix()
+
+
+
+    def __neighbor_joining__ (self, G, N, columns, node_idx=0):
+        node_idx += 1
+        N -= 1
+        if N == 1:
+            #print "COLUMNSF", node_idx, columns[0], columns[1], columns
+            G.addEdge (columns[0], columns[1], self.matrix[0][1])
+            return G
+
+        (Dstar, total_distances, min_i, min_j) = self.getNeighborJoiningMatrix()
+        delta = (total_distances[min_i]- total_distances[min_j])/(N-1)
+        limb_i = (self.getMatrix()[min_i][min_j]+delta)/2
+        limb_j = (self.getMatrix()[min_i][min_j]-delta)/2
+
+        print "LIMB", N+1, N-1, "Delta", delta, limb_i, limb_j
+
+        #Compress...
+        compressed = self.compressMatrix(min_i, min_j)
+
+
+        #print "COMPRESSED"
+        #print compressed
+
+        fn = node_idx
+        ti = columns[min_i]
+        tj = columns[min_j]
+
+        G.addVertex (fn)
+        G.addVertex (ti)
+        G.addVertex (tj)
+
+        #print "COLUMNSA", fn, ti, tj, columns
+        columns[min_i] = node_idx
+        del (columns[min_j])
+
+        T = self.__neighbor_joining__ (G, N, columns, node_idx)
+
+        #print "LEAFS", fn, ti, tj
+        T.addEdge (fn, ti, limb_i)
+        T.addEdge (fn, tj, limb_j)
+
+
+        '''self.removeOffDiagonal(N)
+        T = self.__additivePhylogeny__(G, N, node_idx)
+        (f, v) = T.addDistantEdge (ith, kth, node_idx, x)
+        T.addEdge (v, N, limb_length)'''
+
+        return T
