@@ -50,6 +50,9 @@ class Vertex:
     def getConnections(self):
         return self.connectedTo.keys()
 
+    def hasConnections(self):
+        return len (self.connectedTo.keys ()) !=0
+
     def getId(self):
         return self.id
 
@@ -58,6 +61,10 @@ class Vertex:
 
     def getWeight(self,nbr):
         return self.connectedTo[nbr]
+
+    def setWeight(self,nbr, cost):
+        if self.connectedTo.has_key(nbr):
+            self.connectedTo[nbr] = cost
 
     def getDegree (self):
         return len (self.connectedTo.keys())
@@ -123,18 +130,22 @@ class Graph:
 
         self.vertList[f].addNeighbor(self.vertList[t], cost)
         if self.directed:
-            #print "DIRECTED", f,t, cost
+            print "DIRECTED", f,t, cost
             self.vertList[t].addNeighbor(self.vertList[f], cost)
 
     '''
         input: 0,1,6
     '''
-    def insertVertex (self, f, t, n, cost=0):
+    def insertVertex (self, f, t, n, cost=0, as_root=False):
         if f not in self.vertList or t not in self.vertList:
             print "ERROR"
             return
         weight = self.vertList[f].getWeight (self.vertList[t])
-        self.addEdge (f, n, cost)
+
+        if as_root:
+            self.addEdge (n,f, cost)
+        else:
+            self.addEdge (f, n, cost)
         self.addEdge(n, t, weight - cost)
         self.vertList[f].removeConnection (self.vertList[t])
         if self.directed:
@@ -259,6 +270,10 @@ class Graph:
                 #print("%s->%s:%s    age:%s" % (v.getId(), w.getId(),v.getWeight (w), v.getAge ()))
             #IDX += 1
         return
+
+    def buildParsimonyTree (text, num_of_leaves):
+
+        pass
 
 
 
@@ -583,8 +598,9 @@ class Matrix:
         val = sys.maxint
         for i in range (dlen):
             for j in range (i+1,dlen):
-                #print "Ti Tj", totalDistance_i, totalDistance_j, (dlen-2)*M[i][j], (dlen-2)*M[i][j]-totalDistance_i-totalDistance_j
+
                 Dval = (dlen-2)*M[i][j]-total_distances[i]-total_distances[j]
+                print "D*ij", i,j, ": ", Dval
                 Dstar[i][j] = Dval
                 Dstar[j][i] = Dval
                 if Dval < val:
@@ -714,3 +730,398 @@ class Matrix:
         T.addEdge (v, N, limb_length)'''
 
         return T
+
+class ParsimonyVertex (Vertex):
+    def __init__(self,key, age=0, use_age=False):
+        Vertex.__init__(self,key, age=age, use_age=use_age)
+        self.states = []
+        self.scores = {}
+        self.label = ""
+
+    def setLabel (self, label):
+        self.label = label
+
+    def getLabel (self):
+        return self.label
+
+    def hasLabel (self):
+        return self.label != ""
+
+    def addState (self, state):
+        self.states.append (state)
+
+    def getState (self, pos):
+        return self.states[pos]
+
+    def getStates (self):
+        return self.states
+
+    def addScore (self, alphabet, score):
+        self.scores[alphabet] = score
+
+    def getScore (self, alphabet):
+        return self.scores[alphabet]
+
+    def getScores (self):
+        return self.scores
+
+    def setTag (self, tag):
+        self.age = tag
+
+    def getTag (self):
+        return self.age
+
+    def isRipe (self):
+        """ We call internal node of T ripe if
+            * its tag is 0 but
+            * its children's tags are both 1.
+        """
+        res = False
+        if self.getDegree():
+            res = self.getTag() == 0
+            #print "SELF", self.getId(), res
+            for children in self.getConnections():
+                res &= children.getTag () == 1
+                #print "CHLD", res, children.getId (), children.getTag ()
+        return res
+
+    def isNumber(self):
+        s = self.id
+        try:
+            float(s)
+            return True
+        except ValueError:
+            try:
+                from fractions import Fraction
+                Fraction(s)
+                return True
+            except ValueError:
+                return False
+
+class ParsimonyGraph (Graph):
+    def __init__(self,string_list='', num_of_leaves=0, un_rooted=False, directed=False, alphabet=['A','C','G','T']):
+        Graph.__init__(self, directed=directed)
+        self.leaves = {}
+        self.root_node = None
+        self.num_of_leaves = num_of_leaves
+        self.alphabet = alphabet
+        self.start_index = 1000
+
+        if string_list:
+            adj_list = string_list.split ('\n')
+
+            for line in adj_list:
+                #print "LINE", line
+                if line != "":
+                    values = line.split("->")
+                    f = values[0]
+                    t = values[1]
+                    #print "ADD EDGE", f, t
+                    #print "---"
+                    lab = ""
+                    si = self.start_index
+                    if f.isalpha():
+                        if self.hasLabel(f):
+                            continue
+                        lab = f
+                        f = si
+                    elif t.isalpha():
+                        if self.hasLabel(t):
+                            continue
+                        lab = t
+                        t = si
+
+                    self.start_index +=1
+                    self.addEdge (f, t)
+                    if lab != "":
+                        v = self.getVertex(si)
+                        v.setLabel (lab)
+                        self.leaves[si] = v
+
+
+    def hasLabel (self, label):
+
+        res = False
+        for v in self.getVertices ():
+            if self.getVertex(v).getLabel () == label:
+                res = True
+        return res
+
+    def addVertex(self,key, age=0,use_age=False):
+        print "ADDDING VERTEX", key ,
+        self.numVertices = self.numVertices + 1
+        newVertex = ParsimonyVertex(key, age, use_age)
+
+        self.vertList[key] = newVertex
+        return newVertex
+
+
+    def smallParsimony (self):
+
+        node = self.leaves.values()[0]
+
+        label_len = len (node.getLabel ())
+        SP = 0
+        for i in range (label_len):
+            (tsp, root_node) = self.__small_parsimony__(i)
+            if self.root_node == None:
+                self.root_node = root_node.getId ()
+            print "##### MIN", i, tsp, root_node.getId()
+            SP += tsp
+            self.__backTrack__(i, tsp, parent_node=None, node=root_node)
+            #exit ()
+            #break
+        print "SmallParsimony ###########################"
+        print SP
+
+
+
+    def __Dik__ (self, i,k):
+        if i == k:
+            return 0
+        else:
+            return 1
+
+    def __small_parsimony__ (self, i):
+
+        #print "## proces Small Parsimony"
+        if self.directed:
+            sub = 1
+        else:
+            sub = 0
+        for node in self.getVertices():
+
+            v = self.getVertex(node)
+            # For leaves, the degree is 0 in non directed graph and 1 in directed ones
+            if v.getDegree() - sub == 0:
+                v.setTag (1)
+                for k in self.alphabet:
+                    character = v.getLabel()[i]
+                    #print "CHAR", character, k
+                    if character == k:
+                        v.addScore (k, 0)
+                    else:
+                        v.addScore (k, sys.maxint)
+                #print "LEAF SCORE", v.getLabel (), v.getScores()
+            else:
+                v.setTag (0)
+
+
+        is_more_ripe = True
+        root_node = None
+        while is_more_ripe:
+
+            is_more_ripe = False
+            for node in self.getVertices():
+
+                v = self.getVertex(node)
+                if v.isRipe ():
+                    min_res = sys.maxint
+                    #print "V is RIPE", v.getId ()
+                    is_more_ripe = True
+                    v.setTag (1)
+                    root_node = v
+
+
+                    children = v.getConnections ()
+
+                    daughter = children[0]
+                    son = children [1]
+                    #print "DAU SCORE", daughter.getScores()
+                    #print "SON SCORE", son.getScores()
+
+                    for k in self.alphabet:
+
+                        min_d = []
+                        min_s = []
+
+                        for i in self.alphabet:
+                            min_d.append (daughter.getScore (i) + self.__Dik__(i,k))
+                            min_s.append (son.getScore (i) + self.__Dik__(i,k))
+                        #print "MIN_D", min_d
+                        #print "MIN_S", min_s
+                        min_val = min (min_d) + min (min_s)
+
+                        #print "MIN VAL", k, min_val, min_res
+
+                        if min_val < min_res:
+                            #print "Min has found", min_val
+                            min_res = min_val
+                        v.addScore (k, min_val)
+
+                    print "SCORES", v.getId (), "MIN", min_val, v.getScores (), "RROT_NODE", root_node.getId ()
+
+        return (min_res, root_node)
+
+    def printNodes (self, print_chars=False, print_all=False, print_states=True):
+        print "HAAAAHOOOOOO", print_chars
+        if not print_chars:
+            Graph.printNodes(self)
+        else:
+            for v in self:
+
+                if print_all and not v.hasConnections():
+                    print("STATES %s->(%s)" % (v.getId(), v.getStates ()))
+                    print("%s->NOCONN (%s)" % (v.getId(), v.getScores ()))
+                for w in v.getConnections():
+                    print("STATES %s->(%s)" % (v.getId(), v.getStates ()))
+                    print("%s->%s:%.3f (%s)" % (v.getId(), w.getId(),abs(v.getWeight (w)), v.getScores ()))
+                    #print("%s->%s:%s" % (v.getId(), w.getId(),abs(float("{0:.3f}".format(v.getWeight (w))))))
+                    #print("%s->%s:%s    age:%s" % (v.getId(), w.getId(),v.getWeight (w), v.getAge ()))
+                #IDX += 1
+        return
+
+    def printParsimony (self, remove_root=False):
+
+        if remove_root:
+            self.removeRootVertex()
+
+        for v in self:
+            v_dna = ''.join([str (x) for x in v.getStates ()])
+            for w in v.getConnections() :
+                w_dna = ''.join([str (x) for x in w.getStates ()])
+                hd = self.hammingDistance(v_dna, w_dna)
+                print("%s->%s:%d" % (v_dna, w_dna, hd))
+                print("%s->%s:%d" % (w_dna, v_dna, hd))
+
+        return
+
+
+    def __backTrack__ (self, i, tsp, parent_node=None, node=None):
+
+        if not node:
+            return None
+        if not parent_node:
+            s_root = node.getScores ()
+            state = min (s_root, key=s_root.get)
+            node.addState (state)
+        else:
+
+
+            s_j = parent_node.getScores ()
+            min_val = min(s_j.itervalues())
+            s_j_states = [k for k, v in s_j.iteritems() if v == min_val]
+
+            s_i = node.getScores ()
+            min_val = min(s_i.itervalues())
+            s_i_states = [k for k, v in s_i.iteritems() if v == min_val]
+
+            s_i = None
+            for s_j in s_j_states:
+                if s_j in s_i_states:
+                    s_i = s_j
+                    break
+            if not s_i:
+                s_i = s_i_states[0]
+
+            node.addState (s_i)
+
+            print "SJ STATES", s_j_states
+            print "SI STATES", s_i_states
+            print "SI", s_i
+            pass
+
+
+        left = None
+        right = None
+        parent = node
+        children = node.getConnections ()
+
+        if children:
+            left = children[0]
+            right = children [1]
+
+        self.__backTrack__(i, tsp, parent, left)
+        self.__backTrack__(i, tsp, parent, right)
+        return
+
+    def hammingDistance (self, p, q):
+        mismatch = 0
+        plen = len (p)
+        qlen = len (q)
+        if qlen != plen:
+            return -1
+
+        for i in range (0, plen):
+           # print "PD: ", p[i], q[i]
+            if p[i] != q[i]:
+                mismatch += 1
+
+        return mismatch
+
+    def makeRootedFromUnroot (self):
+
+        if not self.directed:
+            print "Graph is not directed"
+            return
+
+        from random import randint
+
+        conns = len(self.getVertices())
+
+
+        pickup = randint(0,conns-1)
+        print "CONNS" ,conns, "RND", pickup, self.getVertices()[pickup]
+        f_idx = self.getVertices()[pickup]
+        f = self.getVertex(f_idx)
+
+        t = f.getConnections ()[0]
+        print "CONNS,", t
+        t_idx = t.getId ()
+
+        r_idx = self.start_index
+        self.start_index += 1
+
+
+
+        self.insertVertex(f_idx,t_idx,r_idx, as_root=True)
+        root_node = self.getVertex(r_idx)
+        self.__make_root_directed__(parent_node=None, node=root_node)
+        self.directed = False
+
+        return
+
+    def __make_root_directed__ (self, parent_node=None, node=None):
+
+        if not node:
+            return None
+        if parent_node:
+            # remove connection from children
+            #print "BEF NODE", parent_node, node
+            node.removeConnection(parent_node)
+            #print "AFT NODE", parent_node, node
+
+
+        left = None
+        right = None
+        parent = node
+        children = node.getConnections ()
+
+        #print "CHILDREN", children
+        clen = len (children)
+
+        if clen > 1:
+            left = children[0]
+            right = children [1]
+
+        self.__make_root_directed__(parent, left)
+        self.__make_root_directed__(parent, right)
+        return
+
+    '''
+        input: 0,1,6
+    '''
+    def removeRootVertex (self):
+
+        r = self.getVertex(self.root_node)
+        children = r.getConnections ()
+
+        f = children[0]
+        t = children [1]
+
+        r.removeConnection (f)
+        r.removeConnection (t)
+
+        self.addEdge(f.getId (), t.getId ())
+
+
