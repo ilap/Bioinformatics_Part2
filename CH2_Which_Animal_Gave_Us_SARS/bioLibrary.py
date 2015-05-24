@@ -130,7 +130,7 @@ class Graph:
 
         self.vertList[f].addNeighbor(self.vertList[t], cost)
         if self.directed:
-            print "DIRECTED", f,t, cost
+            #print "DIRECTED", f,t, cost
             self.vertList[t].addNeighbor(self.vertList[f], cost)
 
     '''
@@ -518,7 +518,7 @@ class Matrix:
         clen = len (clusters)
         while clen > 1:
             (age, c1, c2) =  self.closestDistance(D, clusters)
-
+            print "AGE, C1, C2", age, c1, c2
             ## Merge first
             D.addOffDiagonal (clen, 0)
             (n1, v1) = clusters[c1]
